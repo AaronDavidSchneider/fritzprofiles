@@ -13,6 +13,8 @@ class FritzProfileSwitch:
     def __init__(self, url, user, password, profile):
         self.url = url if "http://" in url or "https://" in url else f"http://{url}"
         self.sid = self.login(user, password)
+        self._user = user
+        self._password = password
         self.profile_name = profile
         self.profile_id = self.get_id()
         self.get_state()
@@ -36,11 +38,13 @@ class FritzProfileSwitch:
             url = self.url + '/login_sid.lua?username=' + user + '&response=' + response
             sid, challenge = self.get_sid_challenge(url)
         if sid == '0000000000000000':
-            raise PermissionError('Cannot login to {} using the supplied credentials.'.format(self.url))
+            raise PermissionError(
+                'Cannot login to {} using the supplied credentials. Only works if login via user and password is enabled in the FRITZ!Boxs'.format(
+                    self.url))
         return sid
 
     def get_id(self):
-        logging.info('FETCHING AVAILABLE PROFILES...')
+        logging.info('FETCHING THE PROFILE ID...')
         data = {'xhr': 1, 'sid': self.sid, 'no_sidrenew': '', 'page': 'kidPro'}
         url = self.url + '/data.lua'
         r = requests.post(url, data=data, allow_redirects=True)
@@ -57,19 +61,33 @@ class FritzProfileSwitch:
         return None
 
     def get_state(self):
-        data = {"sid": self.sid, "edit": self.profile_id, "page": "kids_profileedit"}
         url = self.url + '/data.lua'
+        data = {"sid": self.sid, "edit": self.profile_id, "page": "kids_profileedit"}
         r = requests.post(url, data=data, allow_redirects=True)
+        if r.status_code != 200:
+            # login again to fetch new sid
+            self.sid = self.login(self._user, self._password)
+            data = {"sid": self.sid, "edit": self.profile_id, "page": "kids_profileedit"}
+            r = requests.post(url, data=data, allow_redirects=True)
+
         html = lxml.html.fromstring(r.text)
         state = html.xpath('//div[@class="time_ctrl_options"]/input[@checked="checked"]/@value')[0]
         self.last_state = state
         return state
 
     def set_state(self, state):
+        url = self.url + '/data.lua'
         data = {"sid": self.sid, "edit": self.profile_id, "time": state, "budget": "unlimited", "apply": "",
                 "page": "kids_profileedit"}
-        url = self.url + '/data.lua'
         r = requests.post(url, data=data, allow_redirects=True)
+
+        if r.status_code != 200:
+            # login again to fetch new sid
+            self.sid = self.login(self._user, self._password)
+            data = {"sid": self.sid, "edit": self.profile_id, "time": state, "budget": "unlimited", "apply": "",
+                    "page": "kids_profileedit"}
+            r = requests.post(url, data=data, allow_redirects=True)
+
         return r
 
     def print_state(self):
