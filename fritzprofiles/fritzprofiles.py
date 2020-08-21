@@ -2,10 +2,12 @@
 
 import argparse
 import hashlib
+import logging
+
 import lxml.etree
 import lxml.html
 import requests
-import logging
+
 
 class FritzProfileSwitch:
     def __init__(self, url, user, password, profile):
@@ -64,13 +66,16 @@ class FritzProfileSwitch:
         return state
 
     def set_state(self, state):
-        data = {"sid": self.sid, "edit": self.profile_id, "time": state, "budget": "unlimited", "apply": "", "page": "kids_profileedit"}
+        data = {"sid": self.sid, "edit": self.profile_id, "time": state, "budget": "unlimited", "apply": "",
+                "page": "kids_profileedit"}
         url = self.url + '/data.lua'
         r = requests.post(url, data=data, allow_redirects=True)
+        return r
 
     def print_state(self):
         state = self.get_state()
         print(state)
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -93,6 +98,7 @@ def main():
         fps.print_state()
     if bool(args.set_state):
         fps.set_state(args.set_state)
+
 
 if __name__ == '__main__':
     try:
