@@ -54,15 +54,12 @@ class FritzProfileSwitch:
                 return profile_id
         return None
 
-
     def get_state(self):
         data = {"sid": self.sid, "edit": self.profile_id, "page": "kids_profileedit"}
         url = self.url + '/data.lua'
         r = requests.post(url, data=data, allow_redirects=True)
         html = lxml.html.fromstring(r.text)
-        state = html.xpath('div[@class="time_ctrl_options"]/input') # this is clearly wrong!
-        # in div[@class="time_ctrl_options"] there is an input with attribute checked id. The value should be like this: "uiTime:never" value="never"
-        # in this case never would be the value of state... how do you extract it?
+        state = html.xpath('//div[@class="time_ctrl_options"]/input[@checked="checked"]/@value')[0]
         self.last_state = state
         return state
 
