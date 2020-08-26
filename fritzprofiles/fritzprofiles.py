@@ -12,10 +12,10 @@ import requests
 class FritzProfileSwitch:
     def __init__(self, url, user, password, profile):
         self.url = url if "http://" in url or "https://" in url else f"http://{url}"
-        self.sid = self.login(user, password)
         self._user = user
         self._password = password
         self.profile_name = profile
+        self.sid = self.login()
         self.profile_id = self.get_id()
         self.get_state()
 
@@ -26,21 +26,24 @@ class FritzProfileSwitch:
         challenge = data.xpath('//SessionInfo/Challenge/text()')[0]
         return sid, challenge
 
-    def login(self, user, password):
+    def login(self):
         logging.info("LOGGING IN TO FRITZ!BOX AT {}...".format(self.url))
         sid, challenge = self.get_sid_challenge(self.url + '/login_sid.lua')
         if sid == '0000000000000000':
             md5 = hashlib.md5()
             md5.update(challenge.encode('utf-16le'))
             md5.update('-'.encode('utf-16le'))
-            md5.update(password.encode('utf-16le'))
+            md5.update(self._password.encode('utf-16le'))
             response = challenge + '-' + md5.hexdigest()
-            url = self.url + '/login_sid.lua?username=' + user + '&response=' + response
+            url = self.url + '/login_sid.lua?username=' + self._user + '&response=' + response
             sid, challenge = self.get_sid_challenge(url)
         if sid == '0000000000000000':
+            self.failed = True
             raise PermissionError(
-                'Cannot login to {} using the supplied credentials. Only works if login via user and password is enabled in the FRITZ!Boxs'.format(
+                'Cannot login to {} using the supplied credentials. Only works if login via user and password is enabled in the FRITZ!Box'.format(
                     self.url))
+        self.failed = False
+
         return sid
 
     def get_id(self):
