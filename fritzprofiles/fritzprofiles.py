@@ -61,7 +61,9 @@ class FritzProfileSwitch:
             profile_id = row.xpath('td[@class="btncolumn"]/button[@name="edit"]/@value')[0]
             if profile_name == self.profile_name:
                 return profile_id
-        return None
+        self.failed = True
+        raise AttributeError(
+            'The specified profile {} does not exist. Please check the spelling.'.format(self.profile_name))
 
     def get_state(self):
         url = self.url + '/data.lua'
