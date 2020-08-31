@@ -71,7 +71,7 @@ class FritzProfileSwitch:
         r = requests.post(url, data=data, allow_redirects=True)
         if r.status_code != 200:
             # login again to fetch new sid
-            self.sid = self.login(self._user, self._password)
+            self.sid = self.login()
             data = {"sid": self.sid, "edit": self.profile_id, "page": "kids_profileedit"}
             r = requests.post(url, data=data, allow_redirects=True)
 
@@ -88,7 +88,7 @@ class FritzProfileSwitch:
 
         if r.status_code != 200:
             # login again to fetch new sid
-            self.sid = self.login(self._user, self._password)
+            self.sid = self.login()
             data = {"sid": self.sid, "edit": self.profile_id, "time": state, "budget": "unlimited", "apply": "",
                     "page": "kids_profileedit"}
             r = requests.post(url, data=data, allow_redirects=True)
