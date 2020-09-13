@@ -21,7 +21,7 @@ class FritzProfileSwitch:
 
     def get_sid_challenge(self, url):
         r = requests.get(url, allow_redirects=True)
-        parser = lxml.etree.HTMLParser()
+        parser = lxml.etree.XMLParser(recover=True)
         data = lxml.etree.fromstring(r.content, parser=parser)
         sid = data.xpath('//SessionInfo/SID/text()')[0]
         challenge = data.xpath('//SessionInfo/Challenge/text()')[0]
