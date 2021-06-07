@@ -9,6 +9,23 @@ import lxml.html
 import requests
 
 
+def get_all_profiles(url, user, password):
+    logging.info('FETCHING AVAILABLE PROFILES...')
+    profiles = set()
+    none_profile = FritzProfileSwitch(url, user, password, None)
+    data = {'xhr': 1, 'sid': none_profile.sid, 'no_sidrenew': '', 'page': 'kidPro'}
+    url = none_profile.url + '/data.lua'
+    r = requests.post(url, data=data, allow_redirects=True)
+    html = lxml.html.fromstring(r.text)
+    for row in html.xpath('//table[@id="uiProfileList"]/tr'):
+        profile_name = row.xpath('td[@class="name"]/span/text()')
+        if not profile_name:
+            continue
+        profiles.add(profile_name[0])
+
+    return profiles
+
+
 class FritzProfileSwitch:
     def __init__(self, url, user, password, profile):
         self.url = url if "http://" in url or "https://" in url else f"http://{url}"
@@ -16,8 +33,10 @@ class FritzProfileSwitch:
         self._password = password
         self.profile_name = profile
         self.sid = self.login()
-        self.profile_id = self.get_id()
-        self.get_state()
+
+        if profile:
+            self.profile_id = self.get_id()
+            self.get_state()
 
     def get_sid_challenge(self, url):
         r = requests.get(url, allow_redirects=True)
@@ -53,7 +72,6 @@ class FritzProfileSwitch:
         url = self.url + '/data.lua'
         r = requests.post(url, data=data, allow_redirects=True)
         html = lxml.html.fromstring(r.text)
-        self.profiles = []
         for row in html.xpath('//table[@id="uiProfileList"]/tr'):
             profile_name = row.xpath('td[@class="name"]/span/text()')
             if not profile_name:
@@ -109,12 +127,15 @@ def main():
                         help='Login username; default: empty')
     parser.add_argument('--password', metavar='PASSWORD', type=str, required=True,
                         help='Login password')
-    parser.add_argument('--profile', metavar="PROFILE", type=str, required=True,
+    parser.add_argument('--profile', metavar="PROFILE", type=str,
                         help='The Profile you want to obtain information about or switch')
     parser.add_argument('--get_state', action='store_true',
                         help='get state of profile')
     parser.add_argument('--set_state', metavar='STATE', type=str,
                         help='value to which the profile should be set')
+    parser.add_argument('--get_all', action='store_true',
+                        help='get all profile names')
+
     args = parser.parse_args()
 
     fps = FritzProfileSwitch(args.url, args.user, args.password, args.profile)
@@ -122,6 +143,11 @@ def main():
         fps.print_state()
     if bool(args.set_state):
         fps.set_state(args.set_state)
+
+    if args.get_all:
+        profiles = get_all_profiles(args.url, args.user, args.password)
+        print(profiles)
+
 
 
 if __name__ == '__main__':
