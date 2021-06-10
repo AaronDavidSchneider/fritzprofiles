@@ -8,9 +8,11 @@ import lxml.etree
 import lxml.html
 import requests
 
+_LOGGER = logging.getLogger(__name__)
+
 
 def get_all_profiles(url, user, password):
-    logging.info('FETCHING AVAILABLE PROFILES...')
+    _LOGGER.debug('FETCHING AVAILABLE PROFILES...')
     profiles = set()
     none_profile = FritzProfileSwitch(url, user, password, None)
     data = {'xhr': 1, 'sid': none_profile.sid, 'no_sidrenew': '', 'page': 'kidPro'}
@@ -47,7 +49,7 @@ class FritzProfileSwitch:
         return sid, challenge
 
     def login(self):
-        logging.info("LOGGING IN TO FRITZ!BOX AT {}...".format(self.url))
+        _LOGGER.debug("LOGGING IN TO FRITZ!BOX AT {}...".format(self.url))
         sid, challenge = self.get_sid_challenge(self.url + '/login_sid.lua')
         if sid == '0000000000000000':
             md5 = hashlib.md5()
@@ -67,7 +69,7 @@ class FritzProfileSwitch:
         return sid
 
     def get_id(self):
-        logging.info('FETCHING THE PROFILE ID...')
+        _LOGGER.debug('FETCHING THE PROFILE ID...')
         data = {'xhr': 1, 'sid': self.sid, 'no_sidrenew': '', 'page': 'kidPro'}
         url = self.url + '/data.lua'
         r = requests.post(url, data=data, allow_redirects=True)
@@ -154,7 +156,7 @@ if __name__ == '__main__':
     try:
         main()
     except requests.exceptions.ConnectionError as e:
-        logging.error('Failed to connect to Fritz!Box')
-        logging.error(e)
+        _LOGGER.error('Failed to connect to Fritz!Box')
+        _LOGGER.error(e)
     except PermissionError as e:
-        logging.error(e)
+        _LOGGER.error(e)
