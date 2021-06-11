@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="fritzprofiles",
-    version="0.6",
+    version="0.6.1",
     author="Aaron David Schneider",
     author_email="aaron.david.schneider@gmail.com",
     description="A tool to switch the online time of profiles in the AVM Fritz!Box",
