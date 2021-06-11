@@ -1,0 +1,48 @@
+#!/usr/bin/python
+
+import argparse
+from fritzprofiles import FritzProfileSwitch, get_all_profiles
+import requests
+import logging
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--url', metavar='URL', type=str, default='http://fritz.box',
+                        help='The URL of your Fritz!Box; default: http://fritz.box')
+    parser.add_argument('--user', metavar='USER', type=str, default='',
+                        help='Login username; default: empty')
+    parser.add_argument('--password', metavar='PASSWORD', type=str, required=True,
+                        help='Login password')
+    parser.add_argument('--profile', metavar="PROFILE", type=str,
+                        help='The Profile you want to obtain information about or switch')
+    parser.add_argument('--get_state', action='store_true',
+                        help='get state of profile')
+    parser.add_argument('--set_state', metavar='STATE', type=str,
+                        help='value to which the profile should be set')
+    parser.add_argument('--get_all', action='store_true',
+                        help='get all profile names')
+
+    args = parser.parse_args()
+
+    fps = FritzProfileSwitch(args.url, args.user, args.password, args.profile)
+    if args.get_state:
+        fps.print_state()
+    if bool(args.set_state):
+        fps.set_state(args.set_state)
+
+    if args.get_all:
+        profiles = get_all_profiles(args.url, args.user, args.password)
+        print(profiles)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except requests.exceptions.ConnectionError as e:
+        _LOGGER.error('Failed to connect to Fritz!Box')
+        _LOGGER.error(e)
+    except PermissionError as e:
+        _LOGGER.error(e)

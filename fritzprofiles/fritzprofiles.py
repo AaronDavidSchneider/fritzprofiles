@@ -1,6 +1,4 @@
 # Copyright 2020 Aaron David Schneider. All rights reserved.
-
-import argparse
 import hashlib
 import logging
 
@@ -8,9 +6,11 @@ import lxml.etree
 import lxml.html
 import requests
 
+_LOGGER = logging.getLogger(__name__)
+
 
 def get_all_profiles(url, user, password):
-    logging.info('FETCHING AVAILABLE PROFILES...')
+    _LOGGER.debug('FETCHING AVAILABLE PROFILES...')
     profiles = set()
     none_profile = FritzProfileSwitch(url, user, password, None)
     data = {'xhr': 1, 'sid': none_profile.sid, 'no_sidrenew': '', 'page': 'kidPro'}
@@ -47,7 +47,7 @@ class FritzProfileSwitch:
         return sid, challenge
 
     def login(self):
-        logging.info("LOGGING IN TO FRITZ!BOX AT {}...".format(self.url))
+        _LOGGER.debug("LOGGING IN TO FRITZ!BOX AT {}...".format(self.url))
         sid, challenge = self.get_sid_challenge(self.url + '/login_sid.lua')
         if sid == '0000000000000000':
             md5 = hashlib.md5()
@@ -67,7 +67,7 @@ class FritzProfileSwitch:
         return sid
 
     def get_id(self):
-        logging.info('FETCHING THE PROFILE ID...')
+        _LOGGER.debug('FETCHING THE PROFILE ID...')
         data = {'xhr': 1, 'sid': self.sid, 'no_sidrenew': '', 'page': 'kidPro'}
         url = self.url + '/data.lua'
         r = requests.post(url, data=data, allow_redirects=True)
@@ -117,44 +117,3 @@ class FritzProfileSwitch:
     def print_state(self):
         state = self.get_state()
         print(state)
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--url', metavar='URL', type=str, default='http://fritz.box',
-                        help='The URL of your Fritz!Box; default: http://fritz.box')
-    parser.add_argument('--user', metavar='USER', type=str, default='',
-                        help='Login username; default: empty')
-    parser.add_argument('--password', metavar='PASSWORD', type=str, required=True,
-                        help='Login password')
-    parser.add_argument('--profile', metavar="PROFILE", type=str,
-                        help='The Profile you want to obtain information about or switch')
-    parser.add_argument('--get_state', action='store_true',
-                        help='get state of profile')
-    parser.add_argument('--set_state', metavar='STATE', type=str,
-                        help='value to which the profile should be set')
-    parser.add_argument('--get_all', action='store_true',
-                        help='get all profile names')
-
-    args = parser.parse_args()
-
-    fps = FritzProfileSwitch(args.url, args.user, args.password, args.profile)
-    if args.get_state:
-        fps.print_state()
-    if bool(args.set_state):
-        fps.set_state(args.set_state)
-
-    if args.get_all:
-        profiles = get_all_profiles(args.url, args.user, args.password)
-        print(profiles)
-
-
-
-if __name__ == '__main__':
-    try:
-        main()
-    except requests.exceptions.ConnectionError as e:
-        logging.error('Failed to connect to Fritz!Box')
-        logging.error(e)
-    except PermissionError as e:
-        logging.error(e)

@@ -21,5 +21,6 @@ setuptools.setup(
     install_requires=[
    'requests',
    'lxml'
-    ]
+    ],
+    scripts=["bin/fritzprofiles"]
 )
