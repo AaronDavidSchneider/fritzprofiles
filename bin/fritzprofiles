@@ -1,9 +1,10 @@
 #!/usr/bin/python
 
 import argparse
-from fritzprofiles import FritzProfileSwitch, get_all_profiles
-import requests
 import logging
+import requests
+
+from fritzprofiles import FritzProfileSwitch, get_all_profiles
 
 _LOGGER = logging.getLogger(__name__)
 
