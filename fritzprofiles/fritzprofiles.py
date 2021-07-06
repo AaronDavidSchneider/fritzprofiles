@@ -79,7 +79,7 @@ class FritzProfileSwitch:  # pylint: disable=too-many-instance-attributes
     Class representing the state of a device profile in a fritzbox.
     """
 
-    def __init__(self, url: str, user: str, password: str, profile: Union[str, None]):
+    def __init__(self, url: str, user: str, password: str, profile: str):
         """
         Initialize fritzprofiles object.
         """
@@ -91,14 +91,12 @@ class FritzProfileSwitch:  # pylint: disable=too-many-instance-attributes
         self._sid = login(self._url, self._user, self._password)
 
         self.profile_name: str = profile
-        self._last_state: Union[str, None] = None
         self._filtertype: Union[str, None] = None
         self._parental: Union[str, None] = None
         self._disallow_guest: Union[str, None] = None
 
-        if profile:
-            self.profile_id: str = self.get_id()
-            self.get_state()
+        self.profile_id: Union[str, None] = self.get_id()
+        self.get_state()
 
     def get_id(self) -> Union[str, None]:
         """
@@ -140,7 +138,7 @@ class FritzProfileSwitch:  # pylint: disable=too-many-instance-attributes
             response = requests.post(url, data=data, allow_redirects=True)
 
         html = lxml.html.fromstring(response.text)
-        self._last_state: str = html.xpath(
+        state: str = html.xpath(
             '//div[@class="time_ctrl_options"]/input[@checked="checked"]/@value'
         )[0]
 
@@ -161,7 +159,7 @@ class FritzProfileSwitch:  # pylint: disable=too-many-instance-attributes
         elif black == ["checked"] and self._parental is not None:
             self._filtertype = "black"
 
-        return self._last_state
+        return state
 
     def set_state(self, state: str) -> None:
         """
