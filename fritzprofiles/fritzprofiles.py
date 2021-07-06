@@ -91,25 +91,49 @@ class FritzProfileSwitch:
         if r.status_code != 200:
             # login again to fetch new sid
             self.sid = self.login()
-            data = {"sid": self.sid, "edit": self.profile_id, "page": "kids_profileedit"}
+            data["sid"] = self.sid
             r = requests.post(url, data=data, allow_redirects=True)
 
         html = lxml.html.fromstring(r.text)
         state = html.xpath('//div[@class="time_ctrl_options"]/input[@checked="checked"]/@value')[0]
         self.last_state = state
+
+        parental = html.xpath('//div[@class="formular"]/input[@name="parental"]/@checked')
+        self.parental = 'on' if parental == ['checked'] else None
+
+        disallow_guest = html.xpath('//div[@class="formular"]/input[@name="disallow_guest"]/@checked')
+        self.disallow_guest = 'on' if disallow_guest == ['checked'] else None
+
+        black = html.xpath('//div[@class="formular"]/input[@value="black"]/@checked')
+        white = html.xpath('//div[@class="formular"]/input[@value="white"]/@checked')
+        if white == ['checked'] and self.parental is not None:
+            self.filtertype = 'white'
+        elif black == ['checked'] and self.parental is not None:
+            self.filtertype = 'black'
+        else:
+            self.filtertype = None
+
         return state
 
     def set_state(self, state):
+        self.get_state()
         url = self.url + '/data.lua'
-        data = {"sid": self.sid, "edit": self.profile_id, "time": state, "budget": "unlimited", "apply": "",
+
+        data = {"sid": self.sid, "edit": self.profile_id, "time": state, "budget": "unlimited", "apply": "nop",
                 "page": "kids_profileedit"}
+        if self.parental is not None:
+            data["parental"] = self.parental
+        if self.disallow_guest is not None:
+            data['disallow_guest']= self.disallow_guest
+        if self.filtertype is not None:
+            data["filtertype"] = self.filtertype
+
         r = requests.post(url, data=data, allow_redirects=True)
 
         if r.status_code != 200:
             # login again to fetch new sid
             self.sid = self.login()
-            data = {"sid": self.sid, "edit": self.profile_id, "time": state, "budget": "unlimited", "apply": "",
-                    "page": "kids_profileedit"}
+            data["sid"] = self.sid
             r = requests.post(url, data=data, allow_redirects=True)
 
         return r
