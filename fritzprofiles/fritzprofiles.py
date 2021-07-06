@@ -1,11 +1,11 @@
 # Copyright 2020 Aaron David Schneider. All rights reserved.
 import hashlib
 import logging
+from typing import Set, Tuple, Union
 
 import lxml.etree
 import lxml.html
 import requests
-from typing import Tuple, List, Union, Set
 
 _LOGGER = logging.getLogger(__name__)
 
