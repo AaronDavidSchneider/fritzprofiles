@@ -3,7 +3,7 @@ repos:
     rev: v2.7.2
     hooks:
       - id: pyupgrade
-        args: [--py37-plus]
+        args: [ --py37-plus ]
   - repo: https://github.com/psf/black
     rev: 20.8b1
     hooks:
@@ -20,7 +20,7 @@ repos:
           - --ignore-words-list=hass,alot,datas,dof,dur,farenheit,hist,iff,ines,ist,lightsensor,mut,nd,pres,referer,ser,serie,te,technik,ue,uint,visability,wan,wanna,withing,iam,incomfort
           - --skip="./.*,*.csv,*.json"
           - --quiet-level=2
-        exclude_types: [csv, json]
+        exclude_types: [ csv, json ]
   - repo: https://gitlab.com/pycqa/flake8
     rev: 3.8.3
     hooks:
@@ -46,7 +46,7 @@ repos:
     rev: v3.2.0
     hooks:
       - id: check-executables-have-shebangs
-        stages: [manual]
+        stages: [ manual ]
       - id: no-commit-to-branch
         args:
           - --branch=main
@@ -58,7 +58,7 @@ repos:
     rev: 2.0.4
     hooks:
       - id: prettier
-        stages: [manual]
+        stages: [ manual ]
   - repo: local
     hooks:
       # Run mypy through our wrapper script in order to get the possible
@@ -69,6 +69,6 @@ repos:
         name: mypy
         entry: script/run-in-env.sh mypy
         language: script
-        types: [python]
+        types: [ python ]
         require_serial: true
         files: ^fritzprofiles/.+\.py$

@@ -26,29 +26,39 @@ def get_all_profiles(url, user, password):
     return profiles
 
 
+def get_sid_challenge(url):
+    r = requests.get(url, allow_redirects=True)
+    parser = lxml.etree.XMLParser(recover=True)
+    data = lxml.etree.fromstring(r.content, parser=parser)
+    sid = data.xpath('//SessionInfo/SID/text()')[0]
+    challenge = data.xpath('//SessionInfo/Challenge/text()')[0]
+    return sid, challenge
+
+
 class FritzProfileSwitch:
     def __init__(self, url, user, password, profile):
+        """
+        Initialize fritzprofiles object.
+        """
         self.url = url if "http://" in url or "https://" in url else f"http://{url}"
         self._user = user
         self._password = password
         self.profile_name = profile
         self.sid = self.login()
 
+        self._last_state = None
+        self.filtertype = None
+        self.parental = None
+        self.disallow_guest = None
+        self.failed = False
+
         if profile:
             self.profile_id = self.get_id()
             self.get_state()
 
-    def get_sid_challenge(self, url):
-        r = requests.get(url, allow_redirects=True)
-        parser = lxml.etree.XMLParser(recover=True)
-        data = lxml.etree.fromstring(r.content, parser=parser)
-        sid = data.xpath('//SessionInfo/SID/text()')[0]
-        challenge = data.xpath('//SessionInfo/Challenge/text()')[0]
-        return sid, challenge
-
     def login(self):
         _LOGGER.debug("LOGGING IN TO FRITZ!BOX AT {}...".format(self.url))
-        sid, challenge = self.get_sid_challenge(self.url + '/login_sid.lua')
+        sid, challenge = get_sid_challenge(self.url + '/login_sid.lua')
         if sid == '0000000000000000':
             md5 = hashlib.md5()
             md5.update(challenge.encode('utf-16le'))
@@ -56,13 +66,13 @@ class FritzProfileSwitch:
             md5.update(self._password.encode('utf-16le'))
             response = challenge + '-' + md5.hexdigest()
             url = self.url + '/login_sid.lua?username=' + self._user + '&response=' + response
-            sid, challenge = self.get_sid_challenge(url)
+            sid, challenge = get_sid_challenge(url)
         if sid == '0000000000000000':
             self.failed = True
             raise PermissionError(
-                'Cannot login to {} using the supplied credentials. Only works if login via user and password is enabled in the FRITZ!Box'.format(
+                'Cannot login to {} using the supplied credentials. Only works if login via user and password is '
+                'enabled in the FRITZ!Box'.format(
                     self.url))
-        self.failed = False
 
         return sid
 
@@ -95,8 +105,7 @@ class FritzProfileSwitch:
             r = requests.post(url, data=data, allow_redirects=True)
 
         html = lxml.html.fromstring(r.text)
-        state = html.xpath('//div[@class="time_ctrl_options"]/input[@checked="checked"]/@value')[0]
-        self.last_state = state
+        self._last_state = html.xpath('//div[@class="time_ctrl_options"]/input[@checked="checked"]/@value')[0]
 
         parental = html.xpath('//div[@class="formular"]/input[@name="parental"]/@checked')
         self.parental = 'on' if parental == ['checked'] else None
@@ -110,8 +119,6 @@ class FritzProfileSwitch:
             self.filtertype = 'white'
         elif black == ['checked'] and self.parental is not None:
             self.filtertype = 'black'
-        else:
-            self.filtertype = None
 
         return state
 
@@ -124,7 +131,7 @@ class FritzProfileSwitch:
         if self.parental is not None:
             data["parental"] = self.parental
         if self.disallow_guest is not None:
-            data['disallow_guest']= self.disallow_guest
+            data['disallow_guest'] = self.disallow_guest
         if self.filtertype is not None:
             data["filtertype"] = self.filtertype
 
