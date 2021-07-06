@@ -5,11 +5,12 @@ import logging
 import lxml.etree
 import lxml.html
 import requests
+from typing import Tuple, List, Union, Set
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def get_all_profiles(url, user, password):
+def get_all_profiles(url: str, user: str, password: str) -> Set[str]:
     _LOGGER.debug("FETCHING AVAILABLE PROFILES...")
     profiles = set()
     none_profile = FritzProfileSwitch(url, user, password, None)
@@ -26,7 +27,7 @@ def get_all_profiles(url, user, password):
     return profiles
 
 
-def get_sid_challenge(url):
+def get_sid_challenge(url: str) -> Tuple[str, str]:
     r = requests.get(url, allow_redirects=True)
     parser = lxml.etree.XMLParser(recover=True)
     data = lxml.etree.fromstring(r.content, parser=parser)
@@ -36,27 +37,29 @@ def get_sid_challenge(url):
 
 
 class FritzProfileSwitch:
-    def __init__(self, url, user, password, profile):
+    def __init__(self, url: str, user: str, password: str, profile: Union[str, None]):
         """
         Initialize fritzprofiles object.
         """
-        self.url = url if "http://" in url or "https://" in url else f"http://{url}"
-        self._user = user
-        self._password = password
-        self.profile_name = profile
-        self.sid = self.login()
+        self.url: str = (
+            url if "http://" in url or "https://" in url else f"http://{url}"
+        )
+        self._user: str = user
+        self._password: str = password
+        self.profile_name: str = profile
+        self.sid: str = self.login()
 
-        self._last_state = None
-        self.filtertype = None
-        self.parental = None
-        self.disallow_guest = None
-        self.failed = False
+        self._last_state: Union[str, None] = None
+        self.filtertype: Union[str, None] = None
+        self.parental: Union[str, None] = None
+        self.disallow_guest: Union[str, None] = None
+        self.failed: bool = False
 
         if profile:
-            self.profile_id = self.get_id()
+            self.profile_id: str = self.get_id()
             self.get_state()
 
-    def login(self):
+    def login(self) -> str:
         _LOGGER.debug("LOGGING IN TO FRITZ!BOX AT {}...".format(self.url))
         sid, challenge = get_sid_challenge(self.url + "/login_sid.lua")
         if sid == "0000000000000000":
@@ -82,7 +85,7 @@ class FritzProfileSwitch:
 
         return sid
 
-    def get_id(self):
+    def get_id(self) -> Union[str, None]:
         _LOGGER.debug("FETCHING THE PROFILE ID...")
         data = {"xhr": 1, "sid": self.sid, "no_sidrenew": "", "page": "kidPro"}
         url = self.url + "/data.lua"
@@ -93,11 +96,12 @@ class FritzProfileSwitch:
             if not profile_name:
                 continue
             profile_name = profile_name[0]
-            profile_id = row.xpath(
+            profile_id: str = row.xpath(
                 'td[@class="btncolumn"]/button[@name="edit"]/@value'
             )[0]
             if profile_name == self.profile_name:
                 return profile_id
+
         self.failed = True
         raise AttributeError(
             "The specified profile {} does not exist. Please check the spelling.".format(
@@ -105,7 +109,7 @@ class FritzProfileSwitch:
             )
         )
 
-    def get_state(self):
+    def get_state(self) -> str:
         url = self.url + "/data.lua"
         data = {"sid": self.sid, "edit": self.profile_id, "page": "kids_profileedit"}
         r = requests.post(url, data=data, allow_redirects=True)
@@ -116,7 +120,7 @@ class FritzProfileSwitch:
             r = requests.post(url, data=data, allow_redirects=True)
 
         html = lxml.html.fromstring(r.text)
-        self._last_state = html.xpath(
+        self._last_state: str = html.xpath(
             '//div[@class="time_ctrl_options"]/input[@checked="checked"]/@value'
         )[0]
 
@@ -139,7 +143,7 @@ class FritzProfileSwitch:
 
         return self._last_state
 
-    def set_state(self, state):
+    def set_state(self, state: str) -> None:
         self.get_state()
         url = self.url + "/data.lua"
 
@@ -164,10 +168,10 @@ class FritzProfileSwitch:
             # login again to fetch new sid
             self.sid = self.login()
             data["sid"] = self.sid
-            r = requests.post(url, data=data, allow_redirects=True)
+            requests.post(url, data=data, allow_redirects=True)
 
-        return r
+        return None
 
-    def print_state(self):
+    def print_state(self) -> None:
         state = self.get_state()
         print(state)
