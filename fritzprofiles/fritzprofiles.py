@@ -1,22 +1,32 @@
+"""
+Utilities to switch and get the state of a fritzbox device profile.
+
 # Copyright 2020 Aaron David Schneider. All rights reserved.
+"""
+
+
 import hashlib
 import logging
+from typing import Set, Tuple, Union
 
-import lxml.etree
-import lxml.html
+import lxml.etree  # pylint: disable=no-member
+import lxml.html  # pylint: disable=no-member
 import requests
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def get_all_profiles(url, user, password):
-    _LOGGER.debug('FETCHING AVAILABLE PROFILES...')
-    profiles = set()
-    none_profile = FritzProfileSwitch(url, user, password, None)
-    data = {'xhr': 1, 'sid': none_profile.sid, 'no_sidrenew': '', 'page': 'kidPro'}
-    url = none_profile.url + '/data.lua'
-    r = requests.post(url, data=data, allow_redirects=True)
-    html = lxml.html.fromstring(r.text)
+def get_all_profiles(url: str, user: str, password: str) -> Set[str]:
+    """
+    Get all profile names.
+    """
+    _LOGGER.debug("FETCHING AVAILABLE PROFILES...")
+    profiles: set = set()
+    sid = login(url, user, password)
+    data = {"xhr": 1, "sid": sid, "no_sidrenew": "", "page": "kidPro"}
+    url = url if "http://" in url or "https://" in url else f"http://{url}"
+    response = requests.post(url + "/data.lua", data=data, allow_redirects=True)
+    html = lxml.html.fromstring(response.text)
     for row in html.xpath('//table[@id="uiProfileList"]/tr'):
         profile_name = row.xpath('td[@class="name"]/span/text()')
         if not profile_name:
@@ -26,125 +36,164 @@ def get_all_profiles(url, user, password):
     return profiles
 
 
-def get_sid_challenge(url):
-    r = requests.get(url, allow_redirects=True)
+def get_sid_challenge(url: str) -> Tuple[str, str]:
+    """
+    Create the sid challenge.
+    """
+    response = requests.get(url, allow_redirects=True)
     parser = lxml.etree.XMLParser(recover=True)
-    data = lxml.etree.fromstring(r.content, parser=parser)
-    sid = data.xpath('//SessionInfo/SID/text()')[0]
-    challenge = data.xpath('//SessionInfo/Challenge/text()')[0]
+    data = lxml.etree.fromstring(response.content, parser=parser)
+    sid = data.xpath("//SessionInfo/SID/text()")[0]
+    challenge = data.xpath("//SessionInfo/Challenge/text()")[0]
     return sid, challenge
 
 
-class FritzProfileSwitch:
-    def __init__(self, url, user, password, profile):
+def login(url: str, user: str, password: str) -> str:
+    """
+    Login to fritzbox.
+    """
+    url = url if "http://" in url or "https://" in url else f"http://{url}"
+    _LOGGER.debug("LOGGING IN TO FRITZ!BOX AT %s", url)
+
+    sid, challenge = get_sid_challenge(url + "/login_sid.lua")
+    if sid == "0000000000000000":
+        md5 = hashlib.md5()
+        md5.update(challenge.encode("utf-16le"))
+        md5.update("-".encode("utf-16le"))
+        md5.update(password.encode("utf-16le"))
+        response = challenge + "-" + md5.hexdigest()
+        url = url + "/login_sid.lua?username=" + user + "&response=" + response
+        sid, challenge = get_sid_challenge(url)
+    if sid == "0000000000000000":
+        raise PermissionError(
+            "Cannot login to {} using the supplied credentials. "
+            "Only works if login via user and password is "
+            "enabled in the FRITZ!Box".format(url)
+        )
+
+    return sid
+
+
+class FritzProfileSwitch:  # pylint: disable=too-many-instance-attributes
+    """
+    Class representing the state of a device profile in a fritzbox.
+    """
+
+    def __init__(self, url: str, user: str, password: str, profile: str):
         """
         Initialize fritzprofiles object.
         """
-        self.url = url if "http://" in url or "https://" in url else f"http://{url}"
-        self._user = user
-        self._password = password
-        self.profile_name = profile
-        self.sid = self.login()
+        url = url if "http://" in url or "https://" in url else f"http://{url}"
 
-        self._last_state = None
-        self.filtertype = None
-        self.parental = None
-        self.disallow_guest = None
-        self.failed = False
+        self._url: str = url
+        self._user: str = user
+        self._password: str = password
+        self._sid = login(self._url, self._user, self._password)
 
-        if profile:
-            self.profile_id = self.get_id()
-            self.get_state()
+        self.profile_name: str = profile
+        self._filtertype: Union[str, None] = None
+        self._parental: Union[str, None] = None
+        self._disallow_guest: Union[str, None] = None
 
-    def login(self):
-        _LOGGER.debug("LOGGING IN TO FRITZ!BOX AT {}...".format(self.url))
-        sid, challenge = get_sid_challenge(self.url + '/login_sid.lua')
-        if sid == '0000000000000000':
-            md5 = hashlib.md5()
-            md5.update(challenge.encode('utf-16le'))
-            md5.update('-'.encode('utf-16le'))
-            md5.update(self._password.encode('utf-16le'))
-            response = challenge + '-' + md5.hexdigest()
-            url = self.url + '/login_sid.lua?username=' + self._user + '&response=' + response
-            sid, challenge = get_sid_challenge(url)
-        if sid == '0000000000000000':
-            self.failed = True
-            raise PermissionError(
-                'Cannot login to {} using the supplied credentials. Only works if login via user and password is '
-                'enabled in the FRITZ!Box'.format(
-                    self.url))
+        self.profile_id: Union[str, None] = self.get_id()
+        self.get_state()
 
-        return sid
-
-    def get_id(self):
-        _LOGGER.debug('FETCHING THE PROFILE ID...')
-        data = {'xhr': 1, 'sid': self.sid, 'no_sidrenew': '', 'page': 'kidPro'}
-        url = self.url + '/data.lua'
-        r = requests.post(url, data=data, allow_redirects=True)
-        html = lxml.html.fromstring(r.text)
+    def get_id(self) -> Union[str, None]:
+        """
+        Get the id of a profile
+        """
+        _LOGGER.debug("FETCHING THE PROFILE ID...")
+        data = {"xhr": 1, "sid": self._sid, "no_sidrenew": "", "page": "kidPro"}
+        url = self._url + "/data.lua"
+        response = requests.post(url, data=data, allow_redirects=True)
+        html = lxml.html.fromstring(response.text)
         for row in html.xpath('//table[@id="uiProfileList"]/tr'):
             profile_name = row.xpath('td[@class="name"]/span/text()')
             if not profile_name:
                 continue
             profile_name = profile_name[0]
-            profile_id = row.xpath('td[@class="btncolumn"]/button[@name="edit"]/@value')[0]
+            profile_id: str = row.xpath(
+                'td[@class="btncolumn"]/button[@name="edit"]/@value'
+            )[0]
             if profile_name == self.profile_name:
                 return profile_id
-        self.failed = True
+
         raise AttributeError(
-            'The specified profile {} does not exist. Please check the spelling.'.format(self.profile_name))
+            "The specified profile {} does not exist. Please check the spelling.".format(
+                self.profile_name
+            )
+        )
 
-    def get_state(self):
-        url = self.url + '/data.lua'
-        data = {"sid": self.sid, "edit": self.profile_id, "page": "kids_profileedit"}
-        r = requests.post(url, data=data, allow_redirects=True)
-        if r.status_code != 200:
+    def get_state(self) -> str:
+        """
+        Get the state of the profile.
+        """
+        url = self._url + "/data.lua"
+        data = {"sid": self._sid, "edit": self.profile_id, "page": "kids_profileedit"}
+        response = requests.post(url, data=data, allow_redirects=True)
+        if response.status_code != 200:
             # login again to fetch new sid
-            self.sid = self.login()
-            data["sid"] = self.sid
-            r = requests.post(url, data=data, allow_redirects=True)
+            self._sid = login(self._url, self._user, self._password)
+            data["sid"] = self._sid
+            response = requests.post(url, data=data, allow_redirects=True)
 
-        html = lxml.html.fromstring(r.text)
-        self._last_state = html.xpath('//div[@class="time_ctrl_options"]/input[@checked="checked"]/@value')[0]
+        html = lxml.html.fromstring(response.text)
+        state: str = html.xpath(
+            '//div[@class="time_ctrl_options"]/input[@checked="checked"]/@value'
+        )[0]
 
-        parental = html.xpath('//div[@class="formular"]/input[@name="parental"]/@checked')
-        self.parental = 'on' if parental == ['checked'] else None
+        parental = html.xpath(
+            '//div[@class="formular"]/input[@name="parental"]/@checked'
+        )
+        self._parental = "on" if parental == ["checked"] else None
 
-        disallow_guest = html.xpath('//div[@class="formular"]/input[@name="disallow_guest"]/@checked')
-        self.disallow_guest = 'on' if disallow_guest == ['checked'] else None
+        disallow_guest = html.xpath(
+            '//div[@class="formular"]/input[@name="disallow_guest"]/@checked'
+        )
+        self._disallow_guest = "on" if disallow_guest == ["checked"] else None
 
         black = html.xpath('//div[@class="formular"]/input[@value="black"]/@checked')
         white = html.xpath('//div[@class="formular"]/input[@value="white"]/@checked')
-        if white == ['checked'] and self.parental is not None:
-            self.filtertype = 'white'
-        elif black == ['checked'] and self.parental is not None:
-            self.filtertype = 'black'
+        if white == ["checked"] and self._parental is not None:
+            self._filtertype = "white"
+        elif black == ["checked"] and self._parental is not None:
+            self._filtertype = "black"
 
         return state
 
-    def set_state(self, state):
+    def set_state(self, state: str) -> None:
+        """
+        Set the state of the profile.
+        """
         self.get_state()
-        url = self.url + '/data.lua'
+        url = self._url + "/data.lua"
 
-        data = {"sid": self.sid, "edit": self.profile_id, "time": state, "budget": "unlimited", "apply": "nop",
-                "page": "kids_profileedit"}
-        if self.parental is not None:
-            data["parental"] = self.parental
-        if self.disallow_guest is not None:
-            data['disallow_guest'] = self.disallow_guest
-        if self.filtertype is not None:
-            data["filtertype"] = self.filtertype
+        data = {
+            "sid": self._sid,
+            "edit": self.profile_id,
+            "time": state,
+            "budget": "unlimited",
+            "apply": "nop",
+            "page": "kids_profileedit",
+        }
+        if self._parental is not None:
+            data["parental"] = self._parental
+        if self._disallow_guest is not None:
+            data["disallow_guest"] = self._disallow_guest
+        if self._filtertype is not None:
+            data["filtertype"] = self._filtertype
 
-        r = requests.post(url, data=data, allow_redirects=True)
+        response = requests.post(url, data=data, allow_redirects=True)
 
-        if r.status_code != 200:
+        if response.status_code != 200:
             # login again to fetch new sid
-            self.sid = self.login()
-            data["sid"] = self.sid
-            r = requests.post(url, data=data, allow_redirects=True)
+            self._sid = login(self._url, self._user, self._password)
+            data["sid"] = self._sid
+            requests.post(url, data=data, allow_redirects=True)
 
-        return r
-
-    def print_state(self):
+    def print_state(self) -> None:
+        """
+        Print the state of the profile.
+        """
         state = self.get_state()
         print(state)

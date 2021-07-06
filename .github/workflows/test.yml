@@ -28,7 +28,7 @@ jobs:
           pre-commit run --hook-stage manual isort --all-files --show-diff-on-failure
       - name: Lint with flake8
         run: |
-          flake8 fritzprofiles
+          flake8 fritzprofiles --ignore=E501,F401,W503
       - name: Check formatting with black
         run: |
           black fritzprofiles --check

@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+
 import requests
 
 from fritzprofiles import FritzProfileSwitch, get_all_profiles
