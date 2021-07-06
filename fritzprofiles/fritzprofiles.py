@@ -62,13 +62,7 @@ def login(url: str, user: str, password: str) -> str:
         md5.update("-".encode("utf-16le"))
         md5.update(password.encode("utf-16le"))
         response = challenge + "-" + md5.hexdigest()
-        url = (
-            url
-            + "/login_sid.lua?username="
-            + user
-            + "&response="
-            + response
-        )
+        url = url + "/login_sid.lua?username=" + user + "&response=" + response
         sid, challenge = get_sid_challenge(url)
     if sid == "0000000000000000":
         raise PermissionError(
@@ -80,10 +74,11 @@ def login(url: str, user: str, password: str) -> str:
     return sid
 
 
-class FritzProfileSwitch: # pylint: disable=too-many-instance-attributes
+class FritzProfileSwitch:  # pylint: disable=too-many-instance-attributes
     """
     Class representing the state of a device profile in a fritzbox.
     """
+
     def __init__(self, url: str, user: str, password: str, profile: Union[str, None]):
         """
         Initialize fritzprofiles object.
