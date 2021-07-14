@@ -26,6 +26,8 @@ def get_all_profiles(url: str, user: str, password: str) -> Set[str]:
     data = {"xhr": 1, "sid": sid, "no_sidrenew": "", "page": "kidPro"}
     url = url if "http://" in url or "https://" in url else f"http://{url}"
     response = requests.post(url + "/data.lua", data=data, allow_redirects=True)
+    if not bool(response.text):
+        return set()
     html = lxml.html.fromstring(response.text)
     for row in html.xpath('//table[@id="uiProfileList"]/tr'):
         profile_name = row.xpath('td[@class="name"]/span/text()')
